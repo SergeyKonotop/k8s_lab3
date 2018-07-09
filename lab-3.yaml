@@ -1,0 +1,75 @@
+---
+kind: PersistentVolume
+apiVersion: v1
+metadata:
+  name: task-pv-volume
+  labels:
+    type: local
+spec:
+  storageClassName: manual
+  capacity:
+    storage: 1Gi
+  accessModes:
+    - ReadWriteOnce
+  hostPath:
+    path: "/etc/nginx/conf.d"
+---
+kind: PersistentVolumeClaim
+apiVersion: v1
+metadata:
+  name: task-pv-claim
+spec:
+  storageClassName: manual
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 0.1Gi
+---
+kind: Service
+apiVersion: v1
+metadata:
+  name: web
+spec:
+  selector:
+    application: www
+  ports:
+  - protocol: TCP
+    port: 80
+    targetPort: 80
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: nginx-deployment
+  labels:
+    application: www
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      application: www
+  template:
+    metadata:
+      labels:
+        application: www
+    spec:
+      initContainers:
+      - name: init-myservice
+        image: ekonser/nginx_curl
+        command: ['sh', '-c', 'curl http://www.google.com >> /usr/share/nginx/html/index.html']
+        volumeMounts:
+          - name: task-pv-storage
+            mountPath: "/usr/share/nginx/html"
+      containers:
+      - name: nginx
+        image: ekonser/nginx_curl
+        ports:
+        - containerPort: 80
+        volumeMounts:
+        - mountPath: "/usr/share/nginx/html"
+          name: task-pv-storage
+      volumes:
+      - name: task-pv-storage
+        persistentVolumeClaim:
+         claimName: task-pv-claim
